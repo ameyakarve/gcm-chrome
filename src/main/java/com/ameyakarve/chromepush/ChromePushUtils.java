@@ -1,51 +1,36 @@
 package com.ameyakarve.chromepush;
 
-import java.util.Arrays;
-import java.security.spec.ECPoint;
-import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.ECPrivateKey;
-import java.util.Base64;
-import java.math.BigInteger;
-import org.bouncycastle.jce.spec.ECParameterSpec;
-import java.security.spec.ECPublicKeySpec;
-import java.security.KeyFactory;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.spec.InvalidParameterSpecException;
-import java.security.spec.InvalidKeySpecException;
-import java.security.SecureRandom;
-import java.security.MessageDigest;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.InvalidAlgorithmParameterException;
-import javax.crypto.KeyAgreement;
-import javax.crypto.SecretKey;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.PublicKey;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import java.security.SecureRandom;
 import java.security.Security;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import javax.crypto.spec.SecretKeySpec;
-import javax.crypto.Mac;
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.ECPublicKey;
+import java.security.spec.ECPoint;
+import java.security.spec.ECPublicKeySpec;
+import java.security.spec.InvalidKeySpecException;
+import java.util.Arrays;
+import java.util.Base64;
 import javax.crypto.Cipher;
+import javax.crypto.KeyAgreement;
+import javax.crypto.Mac;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.BadPaddingException;
-import javax.crypto.NoSuchPaddingException;
-import java.security.InvalidAlgorithmParameterException;
-import java.util.Map;
-import java.util.HashMap;
+import javax.crypto.spec.SecretKeySpec;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.ECPointUtil;
-import org.bouncycastle.jce.spec.ECNamedCurveSpec;
 import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
+import org.bouncycastle.jce.spec.ECNamedCurveSpec;
+import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.json.JSONObject;
-import org.bouncycastle.crypto.generators.HKDFBytesGenerator;
-import org.bouncycastle.crypto.digests.SHA256Digest;
-import org.bouncycastle.crypto.params.HKDFParameters;
 
 
 /*
@@ -67,10 +52,9 @@ public class ChromePushUtils {
     Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
   }
 
-  // Verified
   public static String bytesToHex(byte[] bytes) {
     char[] hexChars = new char[bytes.length * 2];
-    for ( int j = 0; j < bytes.length; j++ ) {
+    for (int j = 0; j < bytes.length; j++) {
       int v = bytes[j] & 0xFF;
       hexChars[j * 2] = hexArray[v >>> 4];
       hexChars[j * 2 + 1] = hexArray[v & 0x0F];
@@ -78,31 +62,28 @@ public class ChromePushUtils {
     return new String(hexChars);
   }
 
-  // Verified
   public static byte[] hexToBytes(String s) {
     int len = s.length();
     byte[] data = new byte[len / 2];
     for (int i = 0; i < len; i += 2) {
-        data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
-                             + Character.digit(s.charAt(i+1), 16));
+      data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4) + Character.digit(s.charAt(i + 1), 16));
     }
     return data;
   }
 
-  // Verified
-  // Read a key from file and generate ECPublicKey. Input is Base64Url
-  public ECPublicKey createPublicKey(final String publicKey) throws NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException {
+  public ECPublicKey createPublicKey(final String publicKey)
+      throws NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException {
     ECNamedCurveParameterSpec spec = ECNamedCurveTable.getParameterSpec("secp256r1"); // P256 curve
     KeyFactory kf = KeyFactory.getInstance("ECDH", "BC");
     ECNamedCurveSpec params = new ECNamedCurveSpec("secp256r1", spec.getCurve(), spec.getG(), spec.getN());
-    ECPoint point =  ECPointUtil.decodePoint(params.getCurve(), Base64.getUrlDecoder().decode(publicKey));
+    ECPoint point = ECPointUtil.decodePoint(params.getCurve(), Base64.getUrlDecoder().decode(publicKey));
     ECPublicKeySpec pubKeySpec = new ECPublicKeySpec(point, params);
     ECPublicKey pk = (ECPublicKey) kf.generatePublic(pubKeySpec);
     return pk;
   }
 
-  // Verified
-  public KeyPair generateServerKeyPair() throws NoSuchAlgorithmException, InvalidAlgorithmParameterException, NoSuchProviderException {
+  public KeyPair generateServerKeyPair()
+      throws NoSuchAlgorithmException, InvalidAlgorithmParameterException, NoSuchProviderException {
     ECParameterSpec ecSpec = ECNamedCurveTable.getParameterSpec("secp256r1"); // P256 curve
     KeyPairGenerator g = KeyPairGenerator.getInstance("ECDH", "BC");
     g.initialize(ecSpec, new SecureRandom());
@@ -110,9 +91,7 @@ public class ChromePushUtils {
     return pair;
   }
 
-  // Verified
   public byte[] publicKeyToBytes(ECPublicKey publicKey) {
-    byte uncompressed = (byte)4;
     ECPoint point = publicKey.getW();
     String x = point.getAffineX().toString(16);
     String y = point.getAffineY().toString(16);
@@ -123,13 +102,12 @@ public class ChromePushUtils {
     StringBuilder sb = new StringBuilder();
     sb.append("04");
 
-
-    for(int i = 0; i < 64 - x.length(); i++) {
+    for (int i = 0; i < 64 - x.length(); i++) {
       sb.append(0);
     }
     sb.append(x);
 
-    for(int i = 0; i < 64 - y.length(); i++) {
+    for (int i = 0; i < 64 - y.length(); i++) {
       sb.append(0);
     }
     sb.append(y);
@@ -138,52 +116,50 @@ public class ChromePushUtils {
     return output;
   }
 
-  // Verified
   public byte[] privateKeyToBytes(ECPrivateKey privateKey) {
     /*
      *  Format is 32 bytes (64 hex) of S 
     */
     StringBuilder sb = new StringBuilder();
     String s = privateKey.getS().toString(16);
-    for(int i = 0; i < 64 - s.length(); i++) {
+    for (int i = 0; i < 64 - s.length(); i++) {
       sb.append(0);
     }
     sb.append(s);
-    byte[] output =  hexToBytes(sb.toString());
+    byte[] output = hexToBytes(sb.toString());
     System.out.println(Base64.getUrlEncoder().encodeToString(output));
     return output;
   }
 
-  // Verified
-  public byte[] generateSharedSecret(final KeyPair serverKeys, PublicKey clientPublicKey) throws NoSuchAlgorithmException, InvalidKeyException, NoSuchProviderException {
+  public byte[] generateSharedSecret(final KeyPair serverKeys, PublicKey clientPublicKey)
+      throws NoSuchAlgorithmException, InvalidKeyException, NoSuchProviderException {
     KeyAgreement keyAgreement = KeyAgreement.getInstance("ECDH", "BC");
     keyAgreement.init(serverKeys.getPrivate());
     keyAgreement.doPhase(clientPublicKey, true);
-    byte[] output =  keyAgreement.generateSecret();
-    System.out.println(Base64.getUrlEncoder().encodeToString(output));
+    byte[] output = keyAgreement.generateSecret();
     return output;
   }
 
   public byte[] generateInfo(final byte[] client_public, final byte[] server_public, final byte[] type)
-    throws Exception {
-    
+      throws Exception {
+
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     outputStream.write(CONTENT_ENCODING); // Append the string “Content-Encoding: “
     outputStream.write(type); // Append the |type|
-    outputStream.write((byte)0); // Append a NULL-byte
+    outputStream.write((byte) 0); // Append a NULL-byte
     outputStream.write(P256); // Append the string “P-256”
-    outputStream.write((byte)0); // Append a NULL-byte
-    
-    outputStream.write((byte)0); // Append the length of the recipient’s public key (here |client_public|) 
-    outputStream.write((byte)65); // as a two-byte integer in network byte order.
+    outputStream.write((byte) 0); // Append a NULL-byte
+
+    outputStream.write((byte) 0); // Append the length of the recipient’s public key (here |client_public|)
+    outputStream.write((byte) 65); // as a two-byte integer in network byte order.
 
     outputStream.write(client_public); // Append the raw bytes (65) of the recipient’s public key.
 
-    outputStream.write((byte)0); // Append the length of the sender’s public key (here |server_public|)
-    outputStream.write((byte)65); // as a two-byte integer in network byte order.
+    outputStream.write((byte) 0); // Append the length of the sender’s public key (here |server_public|)
+    outputStream.write((byte) 65); // as a two-byte integer in network byte order.
 
     outputStream.write(server_public); // Append the raw bytes (65) of the sender’s public key.
-    
+
     return outputStream.toByteArray(); // Verified that the lengths are good.
   }
 
@@ -196,17 +172,19 @@ public class ChromePushUtils {
   public static String createCryptoKeyHeader(final byte[] server_public) {
     //Encode |server_public| using the URL-safe base64 encoding, store it in |encoded_server_public|.
     // Return the result of concatenating (“dh=”, |encoded_server_public|).
-    return "dh=" +  Base64.getUrlEncoder().encodeToString(server_public); 
+    return "dh=" + Base64.getUrlEncoder().encodeToString(server_public);
   }
 
-  public byte[] computeSHA256HMAC(final byte[] secret, final byte[] message) throws Exception {
+  public byte[] computeSHA256HMAC(final byte[] secret, final byte[] message)
+      throws Exception {
     Mac sha256_HMAC = Mac.getInstance("HmacSHA256");
     SecretKeySpec secret_key = new SecretKeySpec(secret, "HmacSHA256");
     sha256_HMAC.init(secret_key);
     return sha256_HMAC.doFinal(message);
   }
 
-  public byte[] hkdfExtract(byte[] secret_key, byte[] salt, byte[] messageToExtract, int len) throws Exception{
+  public byte[] hkdfExtract(byte[] secret_key, byte[] salt, byte[] messageToExtract, int len)
+      throws Exception {
     Mac outerMac = Mac.getInstance("HmacSHA256");
     outerMac.init(new SecretKeySpec(salt, "HmacSHA256"));
     byte[] outerResult = outerMac.doFinal(secret_key);
@@ -214,78 +192,79 @@ public class ChromePushUtils {
     Mac innerMac = Mac.getInstance("HmacSHA256");
     innerMac.init(new SecretKeySpec(outerResult, "HmacSHA256"));
     byte[] message = new byte[messageToExtract.length + 1];
-    System.arraycopy(messageToExtract,0,message,0,messageToExtract.length);
-    message[messageToExtract.length] = (byte)1;
+    System.arraycopy(messageToExtract, 0, message, 0, messageToExtract.length);
+    message[messageToExtract.length] = (byte) 1;
     System.out.println("Info: " + Base64.getUrlEncoder().encodeToString(message));
     byte[] innerResult = innerMac.doFinal(message);
     System.out.println("Inner mac result: " + Base64.getUrlEncoder().encodeToString(innerResult));
     return Arrays.copyOf(innerResult, len);
   }
 
-  public String encryptPayload(final String plaintext, final byte[] shared_secret, final byte[] salt, final byte[] content_encryption_key_info, final byte[] nonce_info, final byte[] client_auth) throws Exception {
+  public String encryptPayload(final String plaintext, final byte[] shared_secret, final byte[] salt,
+      final byte[] content_encryption_key_info, final byte[] nonce_info, final byte[] client_auth)
+      throws Exception {
 
-    final byte[] prk = hkdfExtract(shared_secret, client_auth, "Content-Encoding: auth\0".getBytes(StandardCharsets.UTF_8), 32);
+    final byte[] prk =
+        hkdfExtract(shared_secret, client_auth, "Content-Encoding: auth\0".getBytes(StandardCharsets.UTF_8), 32);
 
-    System.out.println("PRK is " + Base64.getUrlEncoder().encodeToString(prk));
-    
     final byte[] content_encryption_key = hkdfExtract(prk, salt, content_encryption_key_info, 16);
-
-    System.out.println("CEK is " + Base64.getUrlEncoder().encodeToString(content_encryption_key));
 
     final byte[] nonce = hkdfExtract(prk, salt, nonce_info, 12);
 
-    System.out.println("Nonce is " + Base64.getUrlEncoder().encodeToString(nonce));
-
     final byte[] record = ("\0\0" + plaintext).getBytes(StandardCharsets.UTF_8);
-
-    System.out.println("Record is " + Base64.getEncoder().encodeToString(record));
-    
-    System.out.println("Length of record is " + record.length);
 
     // Set |ciphertext| to the result of encrypting |record| with AEAD_AES_128_GCM, using the |content_encryption_key| as the key, the |nonce| as the nonce/IV, and an authentication tag of 16 bytes. (See function below)
     final byte[] ciphertext = encryptWithAESGCM128(nonce, content_encryption_key, record);
 
     System.out.println("Cipher text is " + Base64.getUrlEncoder().encodeToString(ciphertext));
 
-    return Base64.getUrlEncoder().encodeToString(ciphertext); // Encode the |ciphertext| using the URL-safe base64 encoding, store it in |encoded_ciphertext|.
+    return Base64.getUrlEncoder().encodeToString(
+        ciphertext); // Encode the |ciphertext| using the URL-safe base64 encoding, store it in |encoded_ciphertext|.
   }
 
-
-  public static byte[] encryptWithAESGCM128(final byte[] nonce, final byte[] content_encryption_key, final byte[] record) throws Exception {
+  public static byte[] encryptWithAESGCM128(final byte[] nonce, final byte[] content_encryption_key,
+      final byte[] record)
+      throws Exception {
     Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding", "SunJCE");
-    SecretKey key = new SecretKeySpec(content_encryption_key, "AES"); 
+    SecretKey key = new SecretKeySpec(content_encryption_key, "AES");
     GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH * 8, nonce);
     cipher.init(Cipher.ENCRYPT_MODE, key, spec);
     return cipher.doFinal(record);
   }
 
-  public byte[] generateSalt() throws Exception {
+  public byte[] generateSalt()
+      throws Exception {
     byte[] salt = new byte[16];
-    SecureRandom.getInstance("SHA1PRNG").nextBytes(salt); // Generate 16 cryptographically secure random bytes, store them in |salt|.
+    SecureRandom.getInstance("SHA1PRNG")
+        .nextBytes(salt); // Generate 16 cryptographically secure random bytes, store them in |salt|.
     System.out.println(Base64.getUrlEncoder().encodeToString(salt));
     return salt;
   }
-  public JSONObject getGcmChromePushParams(final byte[] server_public, final byte[] client_public, final byte[] shared_secret, final byte[] client_auth, final String plaintext, final byte[] salt) throws Exception {
 
-    
+  public JSONObject getGcmChromePushParams(final byte[] server_public, final byte[] client_public,
+      final byte[] shared_secret, final byte[] client_auth, final String plaintext, final byte[] salt)
+      throws Exception {
 
-    final byte[] nonce_info = generateInfo(client_public,server_public, NONCE); // Determine the |nonce_info| per the Steps for creating Info with |type| being the string “nonce”.
-    System.out.println("Nonce info is " + Base64.getEncoder().encodeToString(nonce_info));
-    final byte[] content_encryption_key_info = generateInfo(client_public, server_public, AESGCM128); // Determine the |content_encryption_key_info| per the Steps for creating Info with |type| being the string “aesgcm128”.
-    System.out.println("Content encryption key info is " + Base64.getEncoder().encodeToString(content_encryption_key_info));
+    final byte[] nonce_info = generateInfo(client_public, server_public,
+        NONCE); // Determine the |nonce_info| per the Steps for creating Info with |type| being the string “nonce”.
+    final byte[] content_encryption_key_info = generateInfo(client_public, server_public,
+        AESGCM128); // Determine the |content_encryption_key_info| per the Steps for creating Info with |type| being the string “aesgcm128”.
+    final String ciphertext = encryptPayload(plaintext, shared_secret, salt, content_encryption_key_info, nonce_info,
+        client_auth); // Run the steps for encrypting the payload, store it to |ciphertext|. (This is already Base64 encoded)
 
-    final String ciphertext = encryptPayload(plaintext, shared_secret, salt, content_encryption_key_info, nonce_info, client_auth); // Run the steps for encrypting the payload, store it to |ciphertext|. (This is already Base64 encoded)
-    
-    final String encryption_header = createEncryptionHeader(salt); // Determine the |encryption_header| by running the steps for creating the Encryption header with |salt|.
-    final String crypto_key_header = createCryptoKeyHeader(server_public); // Determine the |crypto_key_header| by running the steps for creating the Crypto-Key header with |server_public|.
-
-    
+    final String encryption_header = createEncryptionHeader(
+        salt); // Determine the |encryption_header| by running the steps for creating the Encryption header with |salt|.
+    final String crypto_key_header = createCryptoKeyHeader(
+        server_public); // Determine the |crypto_key_header| by running the steps for creating the Crypto-Key header with |server_public|.
 
     JSONObject m = new JSONObject();
-    m.put("encryption", encryption_header); // Add a field to the “data” section of the message named “encryption”, with value |encryption_header|.
-    m.put("crypto_key", crypto_key_header); // Add a field to the “data” section of the message named “crypto_key”, with value |crypto_key_header|.
+    m.put("encryption",
+        encryption_header); // Add a field to the “data” section of the message named “encryption”, with value |encryption_header|.
+    m.put("crypto_key",
+        crypto_key_header); // Add a field to the “data” section of the message named “crypto_key”, with value |crypto_key_header|.
 
-    m.put("payload", ciphertext); // Add a field to the “data” section of the message named “payload”, with value |encoded_ciphertext|.
+    m.put("payload",
+        ciphertext); // Add a field to the “data” section of the message named “payload”, with value |encoded_ciphertext|.
 
     return m;
 
@@ -314,7 +293,8 @@ public class ChromePushUtils {
     */
   }
 
-  public void sendPushMessage(final String endpoint, final byte[] p256dh, final byte[] auth [], final String message, final byte[] secret) {
-    
+  public void sendPushMessage(final String endpoint, final byte[] p256dh, final byte[] auth[], final String message,
+      final byte[] secret) {
+
   }
 }
