@@ -21,7 +21,7 @@ repositories {
 dependencies {
     // The production code uses the SLF4J logging API at compile time
     compile 'org.slf4j:slf4j-api:1.7.5'
-    compile 'org.bouncycastle:bcprov-jdk16:1.46'
+    compile 'org.bouncycastle:bcprov-jdk15on:1.54'
     compile 'org.json:json:20151123'
 
 

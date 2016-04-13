@@ -43,7 +43,9 @@ import org.bouncycastle.jce.ECPointUtil;
 import org.bouncycastle.jce.spec.ECNamedCurveSpec;
 import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
 import org.json.JSONObject;
-
+import org.bouncycastle.crypto.generators.HKDFBytesGenerator;
+import org.bouncycastle.crypto.digests.SHA256Digest;
+import org.bouncycastle.crypto.params.HKDFParameters;
 
 
 /*
@@ -55,10 +57,10 @@ import org.json.JSONObject;
 
 public class ChromePushUtils {
   private final static char[] hexArray = "0123456789ABCDEF".toCharArray();
-  private static final byte[] CONTENT_ENCODING = "Content-Encoding: ".getBytes(StandardCharsets.US_ASCII);
-  private static final byte[] AESGCM128 = "aesgcm128".getBytes(StandardCharsets.US_ASCII);
-  private static final byte[] NONCE = "nonce".getBytes(StandardCharsets.US_ASCII);
-  private static final byte[] P256 = "P-256".getBytes(StandardCharsets.US_ASCII);
+  private static final byte[] CONTENT_ENCODING = "Content-Encoding: ".getBytes(StandardCharsets.UTF_8);
+  private static final byte[] AESGCM128 = "aesgcm".getBytes(StandardCharsets.UTF_8);
+  private static final byte[] NONCE = "nonce".getBytes(StandardCharsets.UTF_8);
+  private static final byte[] P256 = "P-256".getBytes(StandardCharsets.UTF_8);
   private static final int GCM_TAG_LENGTH = 16; // in bytes
 
   public ChromePushUtils() {
@@ -131,7 +133,9 @@ public class ChromePushUtils {
       sb.append(0);
     }
     sb.append(y);
-    return hexToBytes(sb.toString());
+    byte[] output = hexToBytes(sb.toString());
+    System.out.println(Base64.getUrlEncoder().encodeToString(output));
+    return output;
   }
 
   // Verified
@@ -145,7 +149,9 @@ public class ChromePushUtils {
       sb.append(0);
     }
     sb.append(s);
-    return hexToBytes(sb.toString());
+    byte[] output =  hexToBytes(sb.toString());
+    System.out.println(Base64.getUrlEncoder().encodeToString(output));
+    return output;
   }
 
   // Verified
@@ -153,7 +159,9 @@ public class ChromePushUtils {
     KeyAgreement keyAgreement = KeyAgreement.getInstance("ECDH", "BC");
     keyAgreement.init(serverKeys.getPrivate());
     keyAgreement.doPhase(clientPublicKey, true);
-    return keyAgreement.generateSecret();
+    byte[] output =  keyAgreement.generateSecret();
+    System.out.println(Base64.getUrlEncoder().encodeToString(output));
+    return output;
   }
 
   public byte[] generateInfo(final byte[] client_public, final byte[] server_public, final byte[] type)
@@ -198,44 +206,75 @@ public class ChromePushUtils {
     return sha256_HMAC.doFinal(message);
   }
 
-  public String encryptPayload(final String plaintext, final byte[] shared_secret, final byte[] salt, final byte[] content_encryption_key_info, final byte[] nonce_info) throws Exception {
+  public byte[] hkdfExtract(byte[] secret_key, byte[] salt, byte[] messageToExtract, int len) throws Exception{
+    Mac outerMac = Mac.getInstance("HmacSHA256");
+    outerMac.init(new SecretKeySpec(salt, "HmacSHA256"));
+    byte[] outerResult = outerMac.doFinal(secret_key);
+    System.out.println("Outer mac result: " + Base64.getUrlEncoder().encodeToString(outerResult));
+    Mac innerMac = Mac.getInstance("HmacSHA256");
+    innerMac.init(new SecretKeySpec(outerResult, "HmacSHA256"));
+    byte[] message = new byte[messageToExtract.length + 1];
+    System.arraycopy(messageToExtract,0,message,0,messageToExtract.length);
+    message[messageToExtract.length] = (byte)1;
+    System.out.println("Info: " + Base64.getUrlEncoder().encodeToString(message));
+    byte[] innerResult = innerMac.doFinal(message);
+    System.out.println("Inner mac result: " + Base64.getUrlEncoder().encodeToString(innerResult));
+    return Arrays.copyOf(innerResult, len);
+  }
+
+  public String encryptPayload(final String plaintext, final byte[] shared_secret, final byte[] salt, final byte[] content_encryption_key_info, final byte[] nonce_info, final byte[] client_auth) throws Exception {
+
+    final byte[] prk = hkdfExtract(shared_secret, client_auth, "Content-Encoding: auth\0".getBytes(StandardCharsets.UTF_8), 32);
+
+    System.out.println("PRK is " + Base64.getUrlEncoder().encodeToString(prk));
     
-    final byte[] prk = computeSHA256HMAC(salt, shared_secret); //Determine the |prk| by using an SHA-256 HMAC over |salt| and |shared_secret|.
-    final byte[] content_encryption_key = computeSHA256HMAC(prk, content_encryption_key_info); // Determine the |content_encryption_key| by using an SHA-256 HMAC over |prk| and |content_encryption_key_info| to derive 16 bytes of data. (passing the full key; will cut it later)
+    final byte[] content_encryption_key = hkdfExtract(prk, salt, content_encryption_key_info, 16);
 
-    final byte[] nonce = computeSHA256HMAC(prk, nonce_info); // Determine the |nonce| by using an SHA-256 HMAC over |prk| and |nonce_info| to derive 12 bytes of data. (passing the full key; will cut it later)
+    System.out.println("CEK is " + Base64.getUrlEncoder().encodeToString(content_encryption_key));
 
-    ByteArrayOutputStream recordStream = new ByteArrayOutputStream();
-    recordStream.write((byte)0); // Set |record| to the concatenation of (NULL-byte
-    recordStream.write(plaintext.getBytes(StandardCharsets.UTF_8)); // , |plaintext|) *.
-    final byte[] record = recordStream.toByteArray();
+    final byte[] nonce = hkdfExtract(prk, salt, nonce_info, 12);
+
+    System.out.println("Nonce is " + Base64.getUrlEncoder().encodeToString(nonce));
+
+    final byte[] record = ("\0\0" + plaintext).getBytes(StandardCharsets.UTF_8);
+
+    System.out.println("Record is " + Base64.getEncoder().encodeToString(record));
     
     System.out.println("Length of record is " + record.length);
 
     // Set |ciphertext| to the result of encrypting |record| with AEAD_AES_128_GCM, using the |content_encryption_key| as the key, the |nonce| as the nonce/IV, and an authentication tag of 16 bytes. (See function below)
     final byte[] ciphertext = encryptWithAESGCM128(nonce, content_encryption_key, record);
 
+    System.out.println("Cipher text is " + Base64.getUrlEncoder().encodeToString(ciphertext));
+
     return Base64.getUrlEncoder().encodeToString(ciphertext); // Encode the |ciphertext| using the URL-safe base64 encoding, store it in |encoded_ciphertext|.
   }
 
+
   public static byte[] encryptWithAESGCM128(final byte[] nonce, final byte[] content_encryption_key, final byte[] record) throws Exception {
     Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding", "SunJCE");
-    SecretKey key = new SecretKeySpec(content_encryption_key, 0, 16, "AES"); // First 16 bytes of content_encryption_key
-    GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH * 8, nonce, 0, 12); // 12 bytes from nonce
+    SecretKey key = new SecretKeySpec(content_encryption_key, "AES"); 
+    GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH * 8, nonce);
     cipher.init(Cipher.ENCRYPT_MODE, key, spec);
-    cipher.updateAAD("ameyakarve16byte".getBytes(StandardCharsets.US_ASCII)); // 16 bytes authentication tag
     return cipher.doFinal(record);
   }
 
-  public JSONObject getGcmChromePushParams(final byte[] server_public, final byte[] client_public, final byte[] shared_secret, final String plaintext) throws Exception {
-
+  public byte[] generateSalt() throws Exception {
     byte[] salt = new byte[16];
     SecureRandom.getInstance("SHA1PRNG").nextBytes(salt); // Generate 16 cryptographically secure random bytes, store them in |salt|.
+    System.out.println(Base64.getUrlEncoder().encodeToString(salt));
+    return salt;
+  }
+  public JSONObject getGcmChromePushParams(final byte[] server_public, final byte[] client_public, final byte[] shared_secret, final byte[] client_auth, final String plaintext, final byte[] salt) throws Exception {
+
+    
 
     final byte[] nonce_info = generateInfo(client_public,server_public, NONCE); // Determine the |nonce_info| per the Steps for creating Info with |type| being the string “nonce”.
+    System.out.println("Nonce info is " + Base64.getEncoder().encodeToString(nonce_info));
     final byte[] content_encryption_key_info = generateInfo(client_public, server_public, AESGCM128); // Determine the |content_encryption_key_info| per the Steps for creating Info with |type| being the string “aesgcm128”.
+    System.out.println("Content encryption key info is " + Base64.getEncoder().encodeToString(content_encryption_key_info));
 
-    final String ciphertext = encryptPayload(plaintext, shared_secret, salt, content_encryption_key_info, nonce_info); // Run the steps for encrypting the payload, store it to |ciphertext|. (This is already Base64 encoded)
+    final String ciphertext = encryptPayload(plaintext, shared_secret, salt, content_encryption_key_info, nonce_info, client_auth); // Run the steps for encrypting the payload, store it to |ciphertext|. (This is already Base64 encoded)
     
     final String encryption_header = createEncryptionHeader(salt); // Determine the |encryption_header| by running the steps for creating the Encryption header with |salt|.
     final String crypto_key_header = createCryptoKeyHeader(server_public); // Determine the |crypto_key_header| by running the steps for creating the Crypto-Key header with |server_public|.
@@ -252,7 +291,7 @@ public class ChromePushUtils {
 
     /*
      *  curl, request from generated data:
-     
+
         curl -X POST -H "Accept: application/json" -H "Content-Type: application/json" -H "Authorization: key=AIzaSyBzYTfZeaVLaRr4xZJqxe2Mr570AFsl8y0" -H "X-RestLi-Protocol-Version: 1.0.0" -H "Cache-Control: no-cache" -H "Postman-Token: 09c535d1-2c25-b91a-ada4-cac6405d4ddf" -d '{
         "registration_ids": ["dnDhW89rq6g:APA91bFw-hPmxR6QzSRdbWkVAha8KSH2LLHKkTAbEC1F9XdihifGzyVITZBodhhm_Dynjm19h9FBA2xqF5fA9L08XfaOmlJjf2lH6oDoudXV_QXFhPJm1bCBQMrXPWemsgh-ZfV6uqxv"],
         "data":{"crypto_key":"dh=BHTXsIWvWrjzZRkjm42Rs5y_pEW6pEG7gcghdKNfJGKI8bvkoU8oGy1ZmjoD3xFy9YAZEKfAgzyWbqrTV5mzli4=","encryption":"salt=m96vU3JLK43E6SYsypgdXw==","payload":"r9zKCit7-Myg_QMwzP2baKr39NtBk3N4ugb1A48="}
@@ -273,5 +312,9 @@ public class ChromePushUtils {
         }
 
     */
+  }
+
+  public void sendPushMessage(final String endpoint, final byte[] p256dh, final byte[] auth [], final String message, final byte[] secret) {
+    
   }
 }
