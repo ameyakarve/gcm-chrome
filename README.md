@@ -9,7 +9,7 @@ Scala REPL) for testing
 
 ## Usage
 
-Sample Scala code to run this( You can do scala -cp <output-of-gradle-writeClasspath-from-build/classpath.txt>):
+Sample Scala code to run this( You can do `scala -cp <output-of-gradle-writeClasspath-from-build/classpath.txt>` ):
 
 ```scala
 
