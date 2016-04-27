@@ -230,7 +230,7 @@ public class ChromePushUtils {
    * @return 16 byte salt
    * @throws NoSuchAlgorithmException
    */
-  public byte[] generateSalt()
+  public static byte[] generateSalt()
       throws NoSuchAlgorithmException {
     byte[] salt = new byte[16];
     SecureRandom.getInstance(SHA1_PRNG).nextBytes(salt);

@@ -1,25 +1,21 @@
 import com.ameyakarve.chromepush.ChromePushUtils
-import java.security.interfaces.ECPublicKey
-import java.security.interfaces.ECPrivateKey
+import com.ameyakarve.chromepush.EllipticCurveKeyUtils
+import java.nio.charset.StandardCharsets
 import java.util.Base64
+import java.security.interfaces.ECPublicKey
 
-val utils = new ChromePushUtils()
-val clientAuth = Base64.getUrlDecoder().decode("7XeH1mK-zbL3YXiMb8UB1Q==");
-val clientPublicKey = utils.createPublicKey("BGQGOin_m3zmA9XWixIbiA_vP9OCYZ3oJ_VjL0Q34socI_SsLFrd9n9FFfmTDuGxSCvG-PDAAAC02E5B4TwkIY8=")
-// val salt = utils.generateSalt()
-val salt = Base64.getUrlDecoder().decode("4ySkAeiZp33fmMxRwbtFdQ==")
+val ecku = new EllipticCurveKeyUtils()
+val serverKeys = ecku.generateServerKeyPair()
+val clientPublicKey = ecku.loadP256Dh("BLWz1aO3PlkI9QazDVoHDAgk16PPJqOwaVoPbmGAspkNrydlB6KGvixULOnJTMGbTFv8S915y0h1s6dTa0cxmTc=")
+val salt = ChromePushUtils.generateSalt()
+val clientAuth = Base64.getUrlDecoder().decode("i5wNP-TV8mUjngtA_mvF0g==")
+val sharedSecret = ecku.generateSharedSecret(serverKeys, clientPublicKey)
 
-// val serverKeys = utils.generateServerKeyPair()
-// val serverPublicKey: ECPublicKey = serverKeys.getPublic().asInstanceOf[ECPublicKey]
-// val serverPrivateKey: ECPrivateKey = serverKeys.getPrivate().asInstanceOf[ECPrivateKey]
+val serverPublicKeyBytes = ecku.publicKeyToBytes(serverKeys.getPublic().asInstanceOf[ECPublicKey])
+val clientPublicKeyBytes = ecku.publicKeyToBytes(clientPublicKey)
 
-val clientPublic = utils.publicKeyToBytes(clientPublicKey)
-// val serverPublic = utils.publicKeyToBytes(serverPublicKey)
-// val serverPrivate = utils.privateKeyToBytes(serverPrivateKey)
-val serverPublic = Base64.getUrlDecoder().decode("BMYr62Nn4eqwBcOC3fchiZAdzps67dj0AzP8FqEcdNi3Ka52b_O8h5W4qhY_u1wmVSozVzlDNnJw4Hk0kei1-as=")
-val serverPrivate = Base64.getUrlDecoder().decode("K-XqdjfgATqwaT28dJxS2Xh0hK0iRp-6kH783DGBWcg=")
-
-// val sharedSecret = utils.generateSharedSecret(serverKeys, clientPublicKey)
-val sharedSecret = Base64.getUrlDecoder().decode("zfCSWv1LWQC9xqRXqh29Oe9ap62XPjbShMm3_rpz22c=")
-
-val gcmParams = utils.getGcmChromePushParams(serverPublic, clientPublic, sharedSecret, clientAuth, "{\"key\":true}", salt)
+val nonceInfo = ChromePushUtils.generateInfo(serverPublicKeyBytes, clientPublicKeyBytes, "nonce".getBytes(StandardCharsets.UTF_8))
+val contentEncryptionKeyInfo = ChromePushUtils.generateInfo(serverPublicKeyBytes, clientPublicKeyBytes, "aesgcm".getBytes(StandardCharsets.UTF_8))
+val ciphertext = ChromePushUtils.encryptPayload("Hello Worldz", sharedSecret, salt, contentEncryptionKeyInfo, nonceInfo, clientAuth)
+val encryptionHeader = ChromePushUtils.createEncryptionHeader(salt)
+val cryptoKeyHeader = ChromePushUtils.createCryptoKeyHeader(serverPublicKeyBytes)
