@@ -1,3 +1,4 @@
+
 # Java library for encryption for push notification payloads for Chrome-GCM
 
 ## Getting Started
@@ -9,31 +10,39 @@ Scala REPL) for testing
 
 ## Usage
 
-Sample Scala code to run this( You can do `scala -cp <output-of-gradle-writeClasspath-from-build/classpath.txt>` ):
+Sample code:
 
-```scala
+```
 
-import com.ameyakarve.chromepush.ChromePushUtils
-import com.ameyakarve.chromepush.EllipticCurveKeyUtils
-import java.nio.charset.StandardCharsets
-import java.util.Base64
-import java.security.interfaces.ECPublicKey
+public GcmData generateEncryptedPayload(final String payload, final ChromeNotification notification)
+    throws InvalidAlgorithmParameterException, NoSuchAlgorithmException, NoSuchProviderException,
+           InvalidKeySpecException, InvalidKeyException, IOException, NoSuchPaddingException, BadPaddingException,
+           IllegalBlockSizeException {
+  GcmData data = new GcmData();
+  KeyPair serverKeys = _ellipticCurveKeyUtil.generateServerKeyPair();
+  final BrowserPushSubscriptionKeys keys = notification.getBrowserPushSubscriptionKeys();
 
-val ecku = new EllipticCurveKeyUtils()
-val serverKeys = ecku.generateServerKeyPair()
-val clientPublicKey = ecku.loadP256Dh("BLWz1aO3PlkI9QazDVoHDAgk16PPJqOwaVoPbmGAspkNrydlB6KGvixULOnJTMGbTFv8S915y0h1s6dTa0cxmTc=")
-val salt = ChromePushUtils.generateSalt()
-val clientAuth = Base64.getUrlDecoder().decode("i5wNP-TV8mUjngtA_mvF0g==")
-val sharedSecret = ecku.generateSharedSecret(serverKeys, clientPublicKey)
+  final ECPublicKey clientPublicKey = _ellipticCurveKeyUtil.loadP256Dh(keys.getP256dh());
+  final byte[] clientAuth = Base64.getUrlDecoder().decode(keys.getAuth());
+  final byte[] salt = generateSalt();
+  final byte[] sharedSecret = _ellipticCurveKeyUtil.generateSharedSecret(serverKeys, clientPublicKey);
+  final byte[] serverPublicKeyBytes = _ellipticCurveKeyUtil.publicKeyToBytes((ECPublicKey) serverKeys.getPublic());
+  final byte[] clientPublicKeyBytes = _ellipticCurveKeyUtil.publicKeyToBytes(clientPublicKey);
+  final byte[] nonceInfo = generateInfo(serverPublicKeyBytes, clientPublicKeyBytes, NONCE);
+  final byte[] contentEncryptionKeyInfo = generateInfo(serverPublicKeyBytes, clientPublicKeyBytes, AESGCM128);
 
-val serverPublicKeyBytes = ecku.publicKeyToBytes(serverKeys.getPublic().asInstanceOf[ECPublicKey])
-val clientPublicKeyBytes = ecku.publicKeyToBytes(clientPublicKey)
+  data.cipherText = encryptPayload(payload, sharedSecret, salt, contentEncryptionKeyInfo, nonceInfo, clientAuth);
+  data.encryptionHeader = createEncryptionHeader(salt);
+  data.cryptoKeyHeader = createCryptoKeyHeader(serverPublicKeyBytes);
 
-val nonceInfo = ChromePushUtils.generateInfo(serverPublicKeyBytes, clientPublicKeyBytes, "nonce".getBytes(StandardCharsets.UTF_8))
-val contentEncryptionKeyInfo = ChromePushUtils.generateInfo(serverPublicKeyBytes, clientPublicKeyBytes, "aesgcm".getBytes(StandardCharsets.UTF_8))
-val ciphertext = ChromePushUtils.encryptPayload("Hello Worldz", sharedSecret, salt, contentEncryptionKeyInfo, nonceInfo, clientAuth)
-val encryptionHeader = ChromePushUtils.createEncryptionHeader(salt)
-val cryptoKeyHeader = ChromePushUtils.createCryptoKeyHeader(serverPublicKeyBytes)
+  return data;
+}
+
+class GcmData {
+  String cipherText;
+  String encryptionHeader;
+  String cryptoKeyHeader;
+}
 
 ```
 
