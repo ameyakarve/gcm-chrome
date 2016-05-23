@@ -1,5 +1,9 @@
+<<<<<<< HEAD
 package com.ameyakarve.chromepush;
 
+=======
+import com.ameyakarve.chromepush.EllipticCurveKeyUtils;
+>>>>>>> b0899ab69e7a5678a077036a37034b42eba56810
 import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
@@ -8,6 +12,10 @@ import java.security.NoSuchProviderException;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.InvalidKeySpecException;
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> b0899ab69e7a5678a077036a37034b42eba56810
 /**
  * Created by akarve on 4/27/16.
  */
@@ -25,7 +33,11 @@ public abstract class BaseTestCase {
 
   final String expectedSharedSecret = "vgkL5otElJ7tB3jnxop9g7sGxuM4gGs5NL3qTCxe9JE="; //base64 shared secret
 
+<<<<<<< HEAD
   final EllipticCurveKeyUtil _ellipticCurveKeyUtils;
+=======
+  final EllipticCurveKeyUtils _ellipticCurveKeyUtils;
+>>>>>>> b0899ab69e7a5678a077036a37034b42eba56810
 
   final KeyPair _serverKeyPair;
   final ECPublicKey _clientPublicKey;
@@ -38,8 +50,16 @@ public abstract class BaseTestCase {
   protected BaseTestCase()
       throws InvalidAlgorithmParameterException, NoSuchAlgorithmException, NoSuchProviderException,
              InvalidKeySpecException {
+<<<<<<< HEAD
     _ellipticCurveKeyUtils = new EllipticCurveKeyUtil();
     _serverKeyPair = _ellipticCurveKeyUtils.loadECKeyPair(publicKeyX, publicKeyY, privateKeyS);;
     _clientPublicKey = _ellipticCurveKeyUtils.loadP256Dh(p256dh);;
   }
 }
+=======
+    _ellipticCurveKeyUtils = new EllipticCurveKeyUtils();
+    _serverKeyPair = _ellipticCurveKeyUtils.loadECKeyPair(publicKeyX, publicKeyY, privateKeyS);;
+    _clientPublicKey = _ellipticCurveKeyUtils.loadP256Dh(p256dh);;
+  }
+}
+>>>>>>> b0899ab69e7a5678a077036a37034b42eba56810

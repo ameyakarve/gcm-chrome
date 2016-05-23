@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 .project
 .projectsettings
 .classpath
@@ -10,3 +11,9 @@
 */build
 out/
 */bin/
+=======
+.gradle/
+.idea/
+build/
+gcm-chrome.iml
+>>>>>>> b0899ab69e7a5678a077036a37034b42eba56810
